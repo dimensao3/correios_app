@@ -49,7 +49,7 @@ with aba1:
                                     if not re.search(r'[A-Za-z]', nome_pintor):
                                         for offset in [1, 2, 3]:
                                             if (i + offset) < len(linhas):
-                                                linha_abaixo = linhas[i + offset].strip()
+                                                linha_abaixo = lines[i + offset].strip()
                                                 if re.search(r'[A-Za-z]', linha_abaixo) and not padrao_rastreio.search(linha_abaixo):
                                                     nome_pintor = re.split(r'\s\d{4,}', linha_abaixo)[0].strip()
                                                     break
@@ -90,7 +90,7 @@ with aba1:
 # ==========================================
 with aba2:
     st.header("Processar Planilha Base de Resgates")
-    st.write("Faça o upload da planilha base (Excel ou CSV). O sistema formatará os dados e buscará os endereços dos CEPs automaticamente.")
+    st.write("Faça o upload da planilha base. O sistema manterá a coluna 'ENDEREÇO' original entre o CEP e a Rua.")
     
     arquivo_base = st.file_uploader("Selecione a Planilha Base", type=["csv", "xlsx"])
     
@@ -133,12 +133,12 @@ with aba2:
             
             df['CPF'] = df['CPF'].apply(lambda x: limpa_numero(x, 11))
             df['CEP'] = df['CEP'].apply(lambda x: limpa_numero(x, 8))
+            
+            # Garante que a coluna ENDEREÇO exista para não dar erro
+            if 'ENDEREÇO' not in df.columns:
+                df['ENDEREÇO'] = ""
 
-            # ============================================================
-            # A MÁGICA ACONTECE AQUI: O FILTRO ANTI-FANTASMAS
-            # Se o CEP estiver vazio, a linha inteira é deletada
             df = df[df['CEP'] != ""]
-            # ============================================================
 
             for col in ['PESO', 'ALTURA', 'LARGURA', 'COMPRIMENTO']:
                 if col in df.columns:
@@ -146,7 +146,17 @@ with aba2:
                 else:
                     df[col] = ""
 
-            agg_funcs = {'CPF': 'first', 'PINTOR': 'first', 'CEP': 'first', 'PESO': 'max', 'ALTURA': 'max', 'LARGURA': 'max', 'COMPRIMENTO': 'max'}
+            # Adicionado 'ENDEREÇO': 'first' para manter apenas o primeiro endereço encontrado por ID
+            agg_funcs = {
+                'CPF': 'first', 
+                'PINTOR': 'first', 
+                'CEP': 'first', 
+                'ENDEREÇO': 'first',
+                'PESO': 'max', 
+                'ALTURA': 'max', 
+                'LARGURA': 'max', 
+                'COMPRIMENTO': 'max'
+            }
             df_fixo = df.groupby('ID PINTOR').agg(agg_funcs).reset_index()
 
             df['Material_Idx'] = df.groupby('ID PINTOR').cumcount() + 1
@@ -186,7 +196,12 @@ with aba2:
             df_final['NUMERO_RESIDENCIA'] = ""
             df_final['COMPLEMENTO'] = ""
 
-            ordem_base = ['ID PINTOR', 'CPF', 'PINTOR', 'CEP', 'RUA', 'NUMERO_RESIDENCIA', 'COMPLEMENTO', 'BAIRRO', 'CIDADE', 'UF', 'PESO', 'ALTURA', 'LARGURA', 'COMPRIMENTO']
+            # Ordem das colunas atualizada com ENDEREÇO entre CEP e RUA
+            ordem_base = [
+                'ID PINTOR', 'CPF', 'PINTOR', 'CEP', 'ENDEREÇO', 'RUA', 
+                'NUMERO_RESIDENCIA', 'COMPLEMENTO', 'BAIRRO', 'CIDADE', 
+                'UF', 'PESO', 'ALTURA', 'LARGURA', 'COMPRIMENTO'
+            ]
             df_final = df_final[ordem_base + materiais_cols]
 
             st.success("Planilha processada com sucesso!")
