@@ -6,6 +6,7 @@ import requests
 import time
 import io
 import numpy as np
+from datetime import datetime # Nova biblioteca para gerar a hora exata
 
 # Configuração da página
 st.set_page_config(page_title="Ferramentas de Logística", layout="wide")
@@ -73,10 +74,14 @@ with aba1:
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_rastreios.to_excel(writer, index=False)
             
+            # Gera nome do arquivo com data e hora para evitar cache
+            data_hora_atual = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+            nome_arquivo_rastreios = f"Planilha_Rastreios_{data_hora_atual}.xlsx"
+            
             st.download_button(
                 label="📥 Baixar Planilha de Rastreios",
                 data=buffer.getvalue(),
-                file_name="Planilha_Rastreios.xlsx",
+                file_name=nome_arquivo_rastreios,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
         else:
@@ -187,9 +192,13 @@ with aba2:
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_final.to_excel(writer, index=False)
             
+            # Gera nome do arquivo com data e hora para evitar cache
+            data_hora_atual = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+            nome_arquivo_ceps = f"Planilha_Correios_Finalizada_{data_hora_atual}.xlsx"
+            
             st.download_button(
                 label="📥 Baixar Planilha Finalizada",
                 data=buffer.getvalue(),
-                file_name="Planilha_Correios_Finalizada.xlsx",
+                file_name=nome_arquivo_ceps,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
