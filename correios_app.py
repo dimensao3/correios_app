@@ -6,7 +6,7 @@ import requests
 import time
 import io
 import numpy as np
-from datetime import datetime # Nova biblioteca para gerar a hora exata
+from datetime import datetime
 
 # Configuração da página
 st.set_page_config(page_title="Ferramentas de Logística", layout="wide")
@@ -69,12 +69,10 @@ with aba1:
             st.success(f"Sucesso! {len(df_rastreios)} registros extraídos.")
             st.dataframe(df_rastreios.head()) 
             
-            # Prepara o Excel para download em memória
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_rastreios.to_excel(writer, index=False)
             
-            # Gera nome do arquivo com data e hora para evitar cache
             data_hora_atual = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             nome_arquivo_rastreios = f"Planilha_Rastreios_{data_hora_atual}.xlsx"
             
@@ -136,6 +134,12 @@ with aba2:
             df['CPF'] = df['CPF'].apply(lambda x: limpa_numero(x, 11))
             df['CEP'] = df['CEP'].apply(lambda x: limpa_numero(x, 8))
 
+            # ============================================================
+            # A MÁGICA ACONTECE AQUI: O FILTRO ANTI-FANTASMAS
+            # Se o CEP estiver vazio, a linha inteira é deletada
+            df = df[df['CEP'] != ""]
+            # ============================================================
+
             for col in ['PESO', 'ALTURA', 'LARGURA', 'COMPRIMENTO']:
                 if col in df.columns:
                     df[col] = df[col].astype(str).replace(r'\.0$', '', regex=True).replace(r"'+", "", regex=True).replace('nan', '').fillna("")
@@ -192,7 +196,6 @@ with aba2:
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_final.to_excel(writer, index=False)
             
-            # Gera nome do arquivo com data e hora para evitar cache
             data_hora_atual = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             nome_arquivo_ceps = f"Planilha_Correios_Finalizada_{data_hora_atual}.xlsx"
             
