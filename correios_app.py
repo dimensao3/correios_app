@@ -49,7 +49,8 @@ with aba1:
                                     if not re.search(r'[A-Za-z]', nome_pintor):
                                         for offset in [1, 2, 3]:
                                             if (i + offset) < len(linhas):
-                                                linha_abaixo = lines[i + offset].strip()
+                                                # CORRIGIDO AQUI: de lines para linhas
+                                                linha_abaixo = linhas[i + offset].strip() 
                                                 if re.search(r'[A-Za-z]', linha_abaixo) and not padrao_rastreio.search(linha_abaixo):
                                                     nome_pintor = re.split(r'\s\d{4,}', linha_abaixo)[0].strip()
                                                     break
@@ -134,7 +135,6 @@ with aba2:
             df['CPF'] = df['CPF'].apply(lambda x: limpa_numero(x, 11))
             df['CEP'] = df['CEP'].apply(lambda x: limpa_numero(x, 8))
             
-            # Garante que a coluna ENDEREÇO exista para não dar erro
             if 'ENDEREÇO' not in df.columns:
                 df['ENDEREÇO'] = ""
 
@@ -146,7 +146,6 @@ with aba2:
                 else:
                     df[col] = ""
 
-            # Adicionado 'ENDEREÇO': 'first' para manter apenas o primeiro endereço encontrado por ID
             agg_funcs = {
                 'CPF': 'first', 
                 'PINTOR': 'first', 
@@ -196,7 +195,6 @@ with aba2:
             df_final['NUMERO_RESIDENCIA'] = ""
             df_final['COMPLEMENTO'] = ""
 
-            # Ordem das colunas atualizada com ENDEREÇO entre CEP e RUA
             ordem_base = [
                 'ID PINTOR', 'CPF', 'PINTOR', 'CEP', 'ENDEREÇO', 'RUA', 
                 'NUMERO_RESIDENCIA', 'COMPLEMENTO', 'BAIRRO', 'CIDADE', 
