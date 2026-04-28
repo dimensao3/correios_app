@@ -65,10 +65,7 @@ with aba1:
                     st.error(f"Erro ao processar {arquivo.name}: {e}")
 
         if dados_extraidos:
-            # =========================================================
-            # ALTERAÇÃO FEITA: Removido o .drop_duplicates()
-            # Agora ele pega absolutamente TUDO, sem tirar nem por.
-            # =========================================================
+            # Sem drop_duplicates() para manter os 552 exatos do PDF
             df_rastreios = pd.DataFrame(dados_extraidos)
             
             st.success(f"Sucesso! {len(df_rastreios)} registros extraídos (incluindo possíveis repetições do PDF).")
@@ -95,7 +92,7 @@ with aba1:
 # ==========================================
 with aba2:
     st.header("Processar Planilha Base de Resgates")
-    st.write("Faça o upload da planilha base. O sistema manterá a coluna 'ENDEREÇO' original entre o CEP e a Rua.")
+    st.write("Faça o upload da planilha base. O sistema organizará os prêmios, quantidades e seus respectivos valores.")
     
     arquivo_base = st.file_uploader("Selecione a Planilha Base", type=["csv", "xlsx"])
     
@@ -141,6 +138,9 @@ with aba2:
             
             if 'ENDEREÇO' not in df.columns:
                 df['ENDEREÇO'] = ""
+            
+            if 'VALOR' not in df.columns:
+                df['VALOR'] = ""
 
             df = df[df['CEP'] != ""]
 
@@ -162,20 +162,31 @@ with aba2:
             }
             df_fixo = df.groupby('ID PINTOR').agg(agg_funcs).reset_index()
 
+            # Aqui o sistema descobre qual prêmio é qual (1, 2, 3...)
             df['Material_Idx'] = df.groupby('ID PINTOR').cumcount() + 1
+            
+            # Ele pivota o MATERIAL, a QUANTIDADE e também o VALOR baseados nesse índice
             df_premio = df.pivot(index='ID PINTOR', columns='Material_Idx', values='MATERIAL').add_prefix('PREMIO_')
             df_qtd = df.pivot(index='ID PINTOR', columns='Material_Idx', values='QUANTIDADE').add_prefix('QUANTIDADE_')
+            df_valor = df.pivot(index='ID PINTOR', columns='Material_Idx', values='VALOR').add_prefix('VALOR_')
 
             df_materiais = pd.DataFrame(index=df_premio.index)
             materiais_cols = []
+            
+            # Aqui ele constrói as colunas finais na ordem certa: PREMIO_1, QUANTIDADE_1, VALOR_1...
             for i in range(1, df['Material_Idx'].max() + 1):
                 if f'PREMIO_{i}' in df_premio.columns:
                     df_materiais[f'PREMIO_{i}'] = df_premio[f'PREMIO_{i}']
                     materiais_cols.append(f'PREMIO_{i}')
+                
                 if f'QUANTIDADE_{i}' in df_qtd.columns:
                     df_materiais[f'QUANTIDADE_{i}'] = df_qtd[f'QUANTIDADE_{i}']
                     materiais_cols.append(f'QUANTIDADE_{i}')
-                df_materiais[f'VALOR_{i}'] = ""
+                
+                if f'VALOR_{i}' in df_valor.columns:
+                    df_materiais[f'VALOR_{i}'] = df_valor[f'VALOR_{i}']
+                else:
+                    df_materiais[f'VALOR_{i}'] = ""
                 materiais_cols.append(f'VALOR_{i}')
 
             df_final = pd.merge(df_fixo, df_materiais, on='ID PINTOR', how='left')
