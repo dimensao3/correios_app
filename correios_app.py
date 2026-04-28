@@ -49,7 +49,6 @@ with aba1:
                                     if not re.search(r'[A-Za-z]', nome_pintor):
                                         for offset in [1, 2, 3]:
                                             if (i + offset) < len(linhas):
-                                                # CORRIGIDO AQUI: de lines para linhas
                                                 linha_abaixo = linhas[i + offset].strip() 
                                                 if re.search(r'[A-Za-z]', linha_abaixo) and not padrao_rastreio.search(linha_abaixo):
                                                     nome_pintor = re.split(r'\s\d{4,}', linha_abaixo)[0].strip()
@@ -66,8 +65,13 @@ with aba1:
                     st.error(f"Erro ao processar {arquivo.name}: {e}")
 
         if dados_extraidos:
-            df_rastreios = pd.DataFrame(dados_extraidos).drop_duplicates()
-            st.success(f"Sucesso! {len(df_rastreios)} registros extraídos.")
+            # =========================================================
+            # ALTERAÇÃO FEITA: Removido o .drop_duplicates()
+            # Agora ele pega absolutamente TUDO, sem tirar nem por.
+            # =========================================================
+            df_rastreios = pd.DataFrame(dados_extraidos)
+            
+            st.success(f"Sucesso! {len(df_rastreios)} registros extraídos (incluindo possíveis repetições do PDF).")
             st.dataframe(df_rastreios.head()) 
             
             buffer = io.BytesIO()
