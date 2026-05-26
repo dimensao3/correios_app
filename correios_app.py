@@ -268,6 +268,7 @@ with aba2:
                 fill_black = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
                 font_white = Font(color="FFFFFF")
                 
+                # Lista exata informada de colunas que devem ficar pretas com letra branca no cabeçalho
                 colunas_cabecalho_pretas = [
                     "cpfCnpjDestinatario", "documentoEstrangeiroDestinatario", "nomeDestinatario", 
                     "dddTelefoneDestinatario", "telefoneDestinatario", "dddCelularDestinatario", 
@@ -279,13 +280,21 @@ with aba2:
                     "valorDeclarado", "codigoServicoAdicionalEntregaVizinho", "orientacaoEntregaVizinho", 
                     "codigoServicoAdicional1", "codigoServicoAdicional2", "codigoServicoAdicional3", 
                     "pesoInformado", "codigoFormatoObjetoInformado", "alturaInformada", 
-                    "larguraInformada", "comprimentoInformado", "diametroInformado"
+                    "larguraInformada", "comprimentoInformado", "diametroInformado", 
+                    "cienteObjetoNaoProibido", "observacao"
+                ]
+                
+                # Lista de dados do remetente que ficarão laranjas
+                colunas_laranja = [
+                    "cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", 
+                    "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente"
                 ]
 
                 # Aplica texto e cabeçalho
                 for row_idx, row in enumerate(ws.iter_rows(), start=1):
                     for col_idx, cell in enumerate(row, start=1):
                         cell.number_format = '@' # Blindagem de Texto
+                        
                         if row_idx == 1:
                             col_name = cell.value
                             if col_name == "sequencial": 
@@ -293,23 +302,18 @@ with aba2:
                             elif col_name in colunas_cabecalho_pretas: 
                                 cell.fill = fill_black
                                 cell.font = font_white
-                            elif col_name in ["cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente", "cienteObjetoNaoProibido"]: 
+                            elif col_name in colunas_laranja: 
                                 cell.fill = fill_laranja
                             elif col_name and str(col_name).startswith("DeclaracaoConteudo"): 
                                 cell.fill = fill_azul
-                            elif col_name == "observacao":
-                                if "Resgates" in modo_envio:
-                                    cell.fill = fill_black
-                                    cell.font = font_white
-                                else:
-                                    cell.fill = fill_azul
+                            # As demais colunas ficarão com o padrão em branco com letra preta do próprio Excel.
 
-                # PINTANDO COLUNAS INTEIRAS DE AMARELO
+                # PINTANDO COLUNAS INTEIRAS DE AMARELO PARA PREENCHIMENTO DO USUÁRIO
                 for col_name in ["codigoServico", "codigoFormatoObjetoInformado"]:
                     col_idx = df_final.columns.get_loc(col_name) + 1
                     for r in range(2, len(df_final) + 2): ws.cell(r, col_idx).fill = fill_yellow
                 
-                # CÉLULAS VERMELHAS (Faltando Informação)
+                # CÉLULAS VERMELHAS (Faltando Informação - da linha 2 em diante)
                 colunas_auditoria = ["numeroDestinatario", "logradouroDestinatario", "bairroDestinatario", "cidadeDestinatario"]
                 for col_name in colunas_auditoria:
                     col_idx = df_final.columns.get_loc(col_name) + 1
