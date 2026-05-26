@@ -268,26 +268,20 @@ with aba2:
                 fill_black = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
                 font_white = Font(color="FFFFFF")
                 
-                # Lista exata informada de colunas que devem ficar pretas com letra branca no cabeçalho
+                # Lista EXATA informada de colunas que devem ficar pretas com letra branca no cabeçalho
                 colunas_cabecalho_pretas = [
-                    "cpfCnpjDestinatario", "documentoEstrangeiroDestinatario", "nomeDestinatario", 
-                    "dddTelefoneDestinatario", "telefoneDestinatario", "dddCelularDestinatario", 
-                    "celularDestinatario", "emailDestinatario", "observacaoDestinatario", 
-                    "cepDestinatario", "logradouroDestinatario", "numeroDestinatario", 
-                    "complementoDestinatario", "bairroDestinatario", "cidadeDestinatario", 
-                    "ufDestinatario", "codigoServico", "dataPrevistaPostagem", "prazoPostagem", 
-                    "logisticaReversa", "dataValidadeLogReversa", "codigoServicoAdicionalValorDeclarado", 
-                    "valorDeclarado", "codigoServicoAdicionalEntregaVizinho", "orientacaoEntregaVizinho", 
-                    "codigoServicoAdicional1", "codigoServicoAdicional2", "codigoServicoAdicional3", 
-                    "pesoInformado", "codigoFormatoObjetoInformado", "alturaInformada", 
-                    "larguraInformada", "comprimentoInformado", "diametroInformado", 
-                    "cienteObjetoNaoProibido", "observacao"
+                    "cpfCnpjDestinatario", "nomeDestinatario", "cepDestinatario", 
+                    "logradouroDestinatario", "numeroDestinatario", "bairroDestinatario", 
+                    "cidadeDestinatario", "ufDestinatario", "codigoServico", 
+                    "logisticaReversa", "pesoInformado", "codigoFormatoObjetoInformado", 
+                    "alturaInformada", "larguraInformada", "comprimentoInformado"
                 ]
                 
-                # Lista de dados do remetente que ficarão laranjas
+                # Lista de dados do remetente + cienteObjetoNaoProibido (laranjas)
                 colunas_laranja = [
                     "cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", 
-                    "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente"
+                    "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente",
+                    "cienteObjetoNaoProibido"
                 ]
 
                 # Aplica texto e cabeçalho
@@ -306,6 +300,12 @@ with aba2:
                                 cell.fill = fill_laranja
                             elif col_name and str(col_name).startswith("DeclaracaoConteudo"): 
                                 cell.fill = fill_azul
+                            elif col_name == "observacao":
+                                if "Resgates" in modo_envio:
+                                    cell.fill = fill_black
+                                    cell.font = font_white
+                                else:
+                                    cell.fill = fill_azul
                             # As demais colunas ficarão com o padrão em branco com letra preta do próprio Excel.
 
                 # PINTANDO COLUNAS INTEIRAS DE AMARELO PARA PREENCHIMENTO DO USUÁRIO
