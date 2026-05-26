@@ -7,7 +7,7 @@ import time
 import io
 import numpy as np
 from datetime import datetime
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Font
 
 # Configuração da página
 st.set_page_config(page_title="Ferramentas de Logística", layout="wide", page_icon="📦")
@@ -193,7 +193,8 @@ with aba2:
                 df_final[f'DeclaracaoConteudoQuantidade{i}'] = df_base[f'DeclaracaoConteudoQuantidade{i}'].values
                 df_final[f'DeclaracaoConteudoValor{i}'] = df_base[f'DeclaracaoConteudoValor{i}'].values
 
-            df_final = df_final.fillna("").astype(str)
+            # Formata tudo como string e remove os ".0" que o pandas gera em IDs e medidas
+            df_final = df_final.fillna("").astype(str).replace(r'\.0$', '', regex=True)
 
             # === RELATÓRIO DE ERROS INTELIGENTE ===
             dados_erros = []
@@ -228,18 +229,15 @@ with aba2:
             if dados_erros:
                 df_erros = pd.DataFrame(dados_erros)
                 
-                # Se for envio Padrão, esconde a coluna ID Pintor
                 if "Resgates" not in modo_envio:
                     df_erros = df_erros.drop(columns=["ID Pintor"])
                 
-                # Mostra no máximo os 10 primeiros erros na tela
                 for idx, erro in df_erros.head(10).iterrows():
                     detalhe_linha = f"**Linha {erro['Linha (Sequencial)']} ({erro['Nome']}):** {erro['Detalhe do Erro']}"
                     if "Resgates" in modo_envio and erro['ID Pintor']:
                         detalhe_linha = f"**Linha {erro['Linha (Sequencial)']} - ID {erro['ID Pintor']} ({erro['Nome']}):** {erro['Detalhe do Erro']}"
                     st.write("❌ " + detalhe_linha)
                 
-                # Se passar de 10, cria a planilha de relatório
                 if len(df_erros) > 10:
                     st.warning(f"⚠️ Existem mais {len(df_erros) - 10} erros não listados aqui. Baixe o relatório completo detalhado.")
                     
@@ -267,8 +265,10 @@ with aba2:
                 fill_laranja = PatternFill(start_color="FF9900", end_color="FF9900", fill_type="solid")
                 fill_verde = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
                 fill_azul = PatternFill(start_color="00B0F0", end_color="00B0F0", fill_type="solid")
+                fill_black = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+                font_white = Font(color="FFFFFF")
                 
-                colunas_cabecalho_vermelho = [
+                colunas_cabecalho_pretas = [
                     "cpfCnpjDestinatario", "documentoEstrangeiroDestinatario", "nomeDestinatario", 
                     "dddTelefoneDestinatario", "telefoneDestinatario", "dddCelularDestinatario", 
                     "celularDestinatario", "emailDestinatario", "observacaoDestinatario", 
@@ -285,21 +285,31 @@ with aba2:
                 # Aplica texto e cabeçalho
                 for row_idx, row in enumerate(ws.iter_rows(), start=1):
                     for col_idx, cell in enumerate(row, start=1):
-                        cell.number_format = '@'
+                        cell.number_format = '@' # Blindagem de Texto
                         if row_idx == 1:
                             col_name = cell.value
-                            if col_name == "sequencial": cell.fill = fill_verde
-                            elif col_name in colunas_cabecalho_vermelho: cell.fill = fill_red
-                            elif col_name in ["cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente", "cienteObjetoNaoProibido"]: cell.fill = fill_laranja
-                            elif col_name and str(col_name).startswith("DeclaracaoConteudo"): cell.fill = fill_azul
-                            elif col_name == "observacao": cell.fill = fill_red if "Resgates" in modo_envio else fill_azul
+                            if col_name == "sequencial": 
+                                cell.fill = fill_verde
+                            elif col_name in colunas_cabecalho_pretas: 
+                                cell.fill = fill_black
+                                cell.font = font_white
+                            elif col_name in ["cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente", "cienteObjetoNaoProibido"]: 
+                                cell.fill = fill_laranja
+                            elif col_name and str(col_name).startswith("DeclaracaoConteudo"): 
+                                cell.fill = fill_azul
+                            elif col_name == "observacao":
+                                if "Resgates" in modo_envio:
+                                    cell.fill = fill_black
+                                    cell.font = font_white
+                                else:
+                                    cell.fill = fill_azul
 
                 # PINTANDO COLUNAS INTEIRAS DE AMARELO
                 for col_name in ["codigoServico", "codigoFormatoObjetoInformado"]:
                     col_idx = df_final.columns.get_loc(col_name) + 1
                     for r in range(2, len(df_final) + 2): ws.cell(r, col_idx).fill = fill_yellow
                 
-                # CÉLULAS VERMELHAS
+                # CÉLULAS VERMELHAS (Faltando Informação)
                 colunas_auditoria = ["numeroDestinatario", "logradouroDestinatario", "bairroDestinatario", "cidadeDestinatario"]
                 for col_name in colunas_auditoria:
                     col_idx = df_final.columns.get_loc(col_name) + 1
