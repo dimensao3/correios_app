@@ -1,0 +1,15 @@
+[theme]
+# Laranja exato que você pediu (RGB 255, 126, 0)
+primaryColor = "#FF7E00"
+
+# Fundo claro e limpo
+backgroundColor = "#FFFFFF"
+
+# Fundo do menu lateral num tom de cinza bem suave para destacar a área principal
+secondaryBackgroundColor = "#F4F6F9"
+
+# Azul marinho escuro para os textos e títulos
+textColor = "#001B3A"
+
+# Fonte moderna e arredondada
+font = "sans serif"
