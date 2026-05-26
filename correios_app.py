@@ -10,7 +10,7 @@ from datetime import datetime
 from openpyxl.styles import PatternFill
 
 # Configuração da página
-st.set_page_config(page_title="Ferramentas de Logística", layout="wide")
+st.set_page_config(page_title="Ferramentas de Logística", layout="wide", page_icon="📦")
 
 # Título Principal
 st.title("📦 Ferramentas de Processamento - Logística")
@@ -165,6 +165,8 @@ with aba2:
             df_final['sequencial'] = range(1, len(df_base) + 1)
             df_final[['cpfCnpjRemetente','nomeRemetente','cepRemetente','logradouroRemetente','numeroRemetente','bairroRemetente','cidadeRemetente','ufRemetente','cienteObjetoNaoProibido']] = ['03469994000188','Dimensao 3 Log','09930450','Avenida paranapanema','614','Taboão','São Paulo','SP','1']
             
+            df_final['logisticaReversa'] = 'N'
+            
             df_final['cpfCnpjDestinatario'] = df_base['CPF'].values
             df_final['nomeDestinatario'] = df_base['PINTOR'].values
             df_final['cepDestinatario'] = df_base['CEP'].values
@@ -191,8 +193,16 @@ with aba2:
             erros = []
             for i, row in df_final.iterrows():
                 prefixo = f"Linha {i+1} ({row['nomeDestinatario']}):"
-                if not row['numeroDestinatario']: erros.append(f"❌ {prefixo} Número de residência faltando.")
-                if row['logradouroDestinatario'] == "NÃO ENCONTRADO": erros.append(f"❌ {prefixo} CEP {row['cepDestinatario']} não encontrado.")
+                
+                faltando_endereco = []
+                if not row['numeroDestinatario']: faltando_endereco.append("Número")
+                if not row['logradouroDestinatario'] or row['logradouroDestinatario'] == "NÃO ENCONTRADO": faltando_endereco.append("Rua")
+                if not row['bairroDestinatario']: faltando_endereco.append("Bairro")
+                if not row['cidadeDestinatario']: faltando_endereco.append("Cidade")
+                
+                if faltando_endereco:
+                    erros.append(f"❌ {prefixo} Falta preencher: {', '.join(faltando_endereco)}.")
+                
                 try:
                     if float(row['alturaInformada'] or 0) > 100 or float(row['larguraInformada'] or 0) > 100 or float(row['comprimentoInformado'] or 0) > 100:
                         erros.append(f"⚠️ {prefixo} Medida acima de 100cm detectada.")
@@ -209,17 +219,45 @@ with aba2:
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_final.to_excel(writer, index=False, sheet_name='Importacao')
                 ws = writer.sheets['Importacao']
+                
+                # Definição das cores
                 fill_yellow = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
                 fill_red = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+                fill_laranja = PatternFill(start_color="FF9900", end_color="FF9900", fill_type="solid")
+                fill_verde = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
+                fill_azul = PatternFill(start_color="00B0F0", end_color="00B0F0", fill_type="solid")
                 
-                # Colunas Amarelas
-                for col_name in ["codigoServico", "logisticaReversa", "codigoFormatoObjetoInformado"]:
+                # 1. PINTANDO O CABEÇALHO (LINHA 1)
+                for col_idx, col_name in enumerate(df_final.columns, start=1):
+                    if col_name == "sequencial":
+                        ws.cell(row=1, column=col_idx).fill = fill_verde
+                    elif col_name in ["cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", 
+                                      "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente", 
+                                      "cienteObjetoNaoProibido", "logisticaReversa"]:
+                        ws.cell(row=1, column=col_idx).fill = fill_laranja
+                    elif col_name in ["codigoServico", "codigoFormatoObjetoInformado"]:
+                        ws.cell(row=1, column=col_idx).fill = fill_red
+                    elif col_name.startswith("DeclaracaoConteudo"):
+                        ws.cell(row=1, column=col_idx).fill = fill_azul
+                    elif col_name == "observacao":
+                        if "Resgates" in modo_envio:
+                            ws.cell(row=1, column=col_idx).fill = fill_red
+                        else:
+                            ws.cell(row=1, column=col_idx).fill = fill_azul
+
+                # 2. PINTANDO COLUNAS INTEIRAS DE AMARELO (DADOS - LINHA 2 EM DIANTE)
+                for col_name in ["codigoServico", "codigoFormatoObjetoInformado"]:
                     col_idx = df_final.columns.get_loc(col_name) + 1
-                    for r in range(1, len(df_final) + 2): ws.cell(r, col_idx).fill = fill_yellow
+                    for r in range(2, len(df_final) + 2): 
+                        ws.cell(r, col_idx).fill = fill_yellow
                 
-                # Células Vermelhas (Número vazio)
-                col_num = df_final.columns.get_loc("numeroDestinatario") + 1
-                for r in range(2, len(df_final) + 2):
-                    if not ws.cell(r, col_num).value: ws.cell(r, col_num).fill = fill_red
+                # 3. AUDITORIA: CÉLULAS VERMELHAS (FALTA DE ENDEREÇO - LINHA 2 EM DIANTE)
+                colunas_auditoria = ["numeroDestinatario", "logradouroDestinatario", "bairroDestinatario", "cidadeDestinatario"]
+                for col_name in colunas_auditoria:
+                    col_idx = df_final.columns.get_loc(col_name) + 1
+                    for r in range(2, len(df_final) + 2):
+                        valor_cel = str(ws.cell(r, col_idx).value).strip().upper()
+                        if not valor_cel or valor_cel == "NONE" or valor_cel == "NÃO ENCONTRADO":
+                            ws.cell(r, col_idx).fill = fill_red
 
             st.download_button(label="📥 Baixar Planilha para Importação", data=buffer.getvalue(), file_name=f"Importacao_Correios_{datetime.now().strftime('%d-%m_%H-%M')}.xlsx")
