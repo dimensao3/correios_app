@@ -57,11 +57,17 @@ with aba1:
                     st.error(f"Erro ao processar {arquivo.name}: {e}")
 
         if dados_extraidos:
-            df_rastreios = pd.DataFrame(dados_extraidos)
+            df_rastreios = pd.DataFrame(dados_extraidos).astype(str)
             st.success(f"Sucesso! {len(df_rastreios)} registros extraídos.")
+            
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_rastreios.to_excel(writer, index=False)
+                df_rastreios.to_excel(writer, index=False, sheet_name='Rastreios')
+                ws = writer.sheets['Rastreios']
+                for row in ws.iter_rows():
+                    for cell in row:
+                        cell.number_format = '@'
+                        
             st.download_button(label="📥 Baixar Planilha de Rastreios", data=buffer.getvalue(), file_name=f"Rastreios_{datetime.now().strftime('%d-%m_%H-%M')}.xlsx")
 
 # ==========================================
@@ -187,71 +193,113 @@ with aba2:
                 df_final[f'DeclaracaoConteudoQuantidade{i}'] = df_base[f'DeclaracaoConteudoQuantidade{i}'].values
                 df_final[f'DeclaracaoConteudoValor{i}'] = df_base[f'DeclaracaoConteudoValor{i}'].values
 
-            df_final = df_final.fillna("")
+            df_final = df_final.fillna("").astype(str)
 
-            # === RELATÓRIO DE ERROS ===
-            erros = []
+            # === RELATÓRIO DE ERROS INTELIGENTE ===
+            dados_erros = []
+            
             for i, row in df_final.iterrows():
-                prefixo = f"Linha {i+1} ({row['nomeDestinatario']}):"
-                
                 faltando_endereco = []
-                if not row['numeroDestinatario']: faltando_endereco.append("Número")
+                if not row['numeroDestinatario'] or row['numeroDestinatario'].strip() == "": faltando_endereco.append("Número")
                 if not row['logradouroDestinatario'] or row['logradouroDestinatario'] == "NÃO ENCONTRADO": faltando_endereco.append("Rua")
-                if not row['bairroDestinatario']: faltando_endereco.append("Bairro")
-                if not row['cidadeDestinatario']: faltando_endereco.append("Cidade")
+                if not row['bairroDestinatario'] or row['bairroDestinatario'].strip() == "": faltando_endereco.append("Bairro")
+                if not row['cidadeDestinatario'] or row['cidadeDestinatario'].strip() == "": faltando_endereco.append("Cidade")
                 
                 if faltando_endereco:
-                    erros.append(f"❌ {prefixo} Falta preencher: {', '.join(faltando_endereco)}.")
+                    dados_erros.append({
+                        "Linha (Sequencial)": i + 1,
+                        "ID Pintor": row['observacao'] if "Resgates" in modo_envio else "",
+                        "Nome": row['nomeDestinatario'],
+                        "Detalhe do Erro": f"Falta preencher: {', '.join(faltando_endereco)}."
+                    })
                 
                 try:
                     if float(row['alturaInformada'] or 0) > 100 or float(row['larguraInformada'] or 0) > 100 or float(row['comprimentoInformado'] or 0) > 100:
-                        erros.append(f"⚠️ {prefixo} Medida acima de 100cm detectada.")
+                        dados_erros.append({
+                            "Linha (Sequencial)": i + 1,
+                            "ID Pintor": row['observacao'] if "Resgates" in modo_envio else "",
+                            "Nome": row['nomeDestinatario'],
+                            "Detalhe do Erro": "Medida acima de 100cm detectada."
+                        })
                 except: pass
             
             st.subheader("📋 Relatório de Auditoria")
-            if erros:
-                for erro in erros: st.write(erro)
+            
+            if dados_erros:
+                df_erros = pd.DataFrame(dados_erros)
+                
+                # Se for envio Padrão, esconde a coluna ID Pintor
+                if "Resgates" not in modo_envio:
+                    df_erros = df_erros.drop(columns=["ID Pintor"])
+                
+                # Mostra no máximo os 10 primeiros erros na tela
+                for idx, erro in df_erros.head(10).iterrows():
+                    detalhe_linha = f"**Linha {erro['Linha (Sequencial)']} ({erro['Nome']}):** {erro['Detalhe do Erro']}"
+                    if "Resgates" in modo_envio and erro['ID Pintor']:
+                        detalhe_linha = f"**Linha {erro['Linha (Sequencial)']} - ID {erro['ID Pintor']} ({erro['Nome']}):** {erro['Detalhe do Erro']}"
+                    st.write("❌ " + detalhe_linha)
+                
+                # Se passar de 10, cria a planilha de relatório
+                if len(df_erros) > 10:
+                    st.warning(f"⚠️ Existem mais {len(df_erros) - 10} erros não listados aqui. Baixe o relatório completo detalhado.")
+                    
+                    buffer_erros = io.BytesIO()
+                    with pd.ExcelWriter(buffer_erros, engine='openpyxl') as writer:
+                        df_erros.to_excel(writer, index=False, sheet_name='Erros')
+                    
+                    st.download_button(
+                        label="⚠️ Baixar Relatório de Erros",
+                        data=buffer_erros.getvalue(),
+                        file_name=f"Relatorio_Erros_{datetime.now().strftime('%d-%m_%H-%M')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
             else:
                 st.success("✅ Nenhum erro crítico detectado nos dados!")
 
-            # Exportação Excel com cores
+            # Exportação Excel Principal com cores
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_final.to_excel(writer, index=False, sheet_name='Importacao')
                 ws = writer.sheets['Importacao']
                 
-                # Definição das cores
                 fill_yellow = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
                 fill_red = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
                 fill_laranja = PatternFill(start_color="FF9900", end_color="FF9900", fill_type="solid")
                 fill_verde = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
                 fill_azul = PatternFill(start_color="00B0F0", end_color="00B0F0", fill_type="solid")
                 
-                # 1. PINTANDO O CABEÇALHO (LINHA 1)
-                for col_idx, col_name in enumerate(df_final.columns, start=1):
-                    if col_name == "sequencial":
-                        ws.cell(row=1, column=col_idx).fill = fill_verde
-                    elif col_name in ["cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", 
-                                      "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente", 
-                                      "cienteObjetoNaoProibido", "logisticaReversa"]:
-                        ws.cell(row=1, column=col_idx).fill = fill_laranja
-                    elif col_name in ["codigoServico", "codigoFormatoObjetoInformado"]:
-                        ws.cell(row=1, column=col_idx).fill = fill_red
-                    elif col_name.startswith("DeclaracaoConteudo"):
-                        ws.cell(row=1, column=col_idx).fill = fill_azul
-                    elif col_name == "observacao":
-                        if "Resgates" in modo_envio:
-                            ws.cell(row=1, column=col_idx).fill = fill_red
-                        else:
-                            ws.cell(row=1, column=col_idx).fill = fill_azul
+                colunas_cabecalho_vermelho = [
+                    "cpfCnpjDestinatario", "documentoEstrangeiroDestinatario", "nomeDestinatario", 
+                    "dddTelefoneDestinatario", "telefoneDestinatario", "dddCelularDestinatario", 
+                    "celularDestinatario", "emailDestinatario", "observacaoDestinatario", 
+                    "cepDestinatario", "logradouroDestinatario", "numeroDestinatario", 
+                    "complementoDestinatario", "bairroDestinatario", "cidadeDestinatario", 
+                    "ufDestinatario", "codigoServico", "dataPrevistaPostagem", "prazoPostagem", 
+                    "logisticaReversa", "dataValidadeLogReversa", "codigoServicoAdicionalValorDeclarado", 
+                    "valorDeclarado", "codigoServicoAdicionalEntregaVizinho", "orientacaoEntregaVizinho", 
+                    "codigoServicoAdicional1", "codigoServicoAdicional2", "codigoServicoAdicional3", 
+                    "pesoInformado", "codigoFormatoObjetoInformado", "alturaInformada", 
+                    "larguraInformada", "comprimentoInformado", "diametroInformado"
+                ]
 
-                # 2. PINTANDO COLUNAS INTEIRAS DE AMARELO (DADOS - LINHA 2 EM DIANTE)
+                # Aplica texto e cabeçalho
+                for row_idx, row in enumerate(ws.iter_rows(), start=1):
+                    for col_idx, cell in enumerate(row, start=1):
+                        cell.number_format = '@'
+                        if row_idx == 1:
+                            col_name = cell.value
+                            if col_name == "sequencial": cell.fill = fill_verde
+                            elif col_name in colunas_cabecalho_vermelho: cell.fill = fill_red
+                            elif col_name in ["cpfCnpjRemetente", "nomeRemetente", "cepRemetente", "logradouroRemetente", "numeroRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente", "cienteObjetoNaoProibido"]: cell.fill = fill_laranja
+                            elif col_name and str(col_name).startswith("DeclaracaoConteudo"): cell.fill = fill_azul
+                            elif col_name == "observacao": cell.fill = fill_red if "Resgates" in modo_envio else fill_azul
+
+                # PINTANDO COLUNAS INTEIRAS DE AMARELO
                 for col_name in ["codigoServico", "codigoFormatoObjetoInformado"]:
                     col_idx = df_final.columns.get_loc(col_name) + 1
-                    for r in range(2, len(df_final) + 2): 
-                        ws.cell(r, col_idx).fill = fill_yellow
+                    for r in range(2, len(df_final) + 2): ws.cell(r, col_idx).fill = fill_yellow
                 
-                # 3. AUDITORIA: CÉLULAS VERMELHAS (FALTA DE ENDEREÇO - LINHA 2 EM DIANTE)
+                # CÉLULAS VERMELHAS
                 colunas_auditoria = ["numeroDestinatario", "logradouroDestinatario", "bairroDestinatario", "cidadeDestinatario"]
                 for col_name in colunas_auditoria:
                     col_idx = df_final.columns.get_loc(col_name) + 1
