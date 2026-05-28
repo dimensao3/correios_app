@@ -9,21 +9,19 @@ import numpy as np
 from datetime import datetime
 from openpyxl.styles import PatternFill, Font
 
-# Configuração da página (Layout expansivo)
+# Configuração da página
 st.set_page_config(page_title="Sistema de Logística", layout="wide", page_icon="📦")
 
 # ==========================================
-# CUSTOMIZAÇÃO CSS (Deixando mais Clean)
+# CUSTOMIZAÇÃO CSS
 # ==========================================
 st.markdown("""
     <style>
-    /* Estilizando os botões de Upload para ficarem mais elegantes */
     .stFileUploader > div > div {
         background-color: #F4F6F9;
         border-radius: 10px;
         padding: 10px;
     }
-    /* Estilizando o painel de informações Azul Marinho */
     .stAlert {
         background-color: #E8F0FE;
         color: #001B3A;
@@ -53,7 +51,7 @@ if menu == "📄 Extrator de Rastreios":
     st.title("📄 Extrair Códigos de Rastreio (PDF)")
     st.write("Faça o upload dos PDFs gerados pelos Correios para extrair os nomes e rastreamentos.")
     
-    st.markdown("<br>", unsafe_allow_html=True) # Espaço
+    st.markdown("<br>", unsafe_allow_html=True) 
     
     col1, col2 = st.columns([2, 1])
     
@@ -94,7 +92,6 @@ if menu == "📄 Extrator de Rastreios":
             if dados_extraidos:
                 df_rastreios = pd.DataFrame(dados_extraidos).astype(str)
                 
-                # Exibindo o Placar de Sucesso
                 st.success("Extração concluída com sucesso!")
                 st.metric(label="Total de Registros Extraídos", value=f"{len(df_rastreios)} envios")
                 
@@ -144,9 +141,10 @@ elif menu == "📍 Processador de Planilhas":
         
         medidas_caixas = {1:(44,32,27), 2:(50,34,32), 3:(34,34,16), 4:(32,22,28), 5:(24,24,14), 6:(44,33,15), 7:(55,36,45), 8:(24,13,16)}
 
+        # FUNÇÃO CORRIGIDA: Agora reconhece "CX01", "CX 02", etc.
         def identificar_caixa(valor):
             val_str = str(valor).strip().lower()
-            match = re.search(r'(?:cx|caixa)\s*(\d)', val_str)
+            match = re.search(r'(?:cx|caixa)\s*0*(\d+)', val_str)
             return int(match.group(1)) if match else None
 
         def buscar_cep(cep):
@@ -178,6 +176,12 @@ elif menu == "📍 Processador de Planilhas":
             if 'CPF' in df.columns: df['CPF'] = df['CPF'].apply(lambda x: limpa_numero(x, 11))
             if 'CEP' in df.columns: df['CEP'] = df['CEP'].apply(lambda x: limpa_numero(x, 8))
             df = df[df['CEP'] != ""]
+
+            # NOVO: Blindagem de segurança ANTES do agrupamento
+            # Impede conflito de 'max()' entre Textos e Campos Vazios (NaN)
+            for c in ['PESO', 'ALTURA', 'LARGURA', 'COMPRIMENTO']:
+                if c in df.columns:
+                    df[c] = df[c].fillna("").astype(str).replace(r'\.0$', '', regex=True).replace('nan', '')
 
             max_itens = 0
             if "Resgates" in modo_envio:
@@ -291,7 +295,7 @@ elif menu == "📍 Processador de Planilhas":
                 
                 fill_yellow = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
                 fill_red = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-                fill_laranja = PatternFill(start_color="FF7E00", end_color="FF7E00", fill_type="solid") # Atualizado para FF7E00
+                fill_laranja = PatternFill(start_color="FF7E00", end_color="FF7E00", fill_type="solid")
                 fill_verde = PatternFill(start_color="00FF00", end_color="00FF00", fill_type="solid")
                 fill_azul = PatternFill(start_color="00B0F0", end_color="00B0F0", fill_type="solid")
                 fill_black = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
