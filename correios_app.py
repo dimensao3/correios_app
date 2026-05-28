@@ -141,7 +141,6 @@ elif menu == "📍 Processador de Planilhas":
         
         medidas_caixas = {1:(44,32,27), 2:(50,34,32), 3:(34,34,16), 4:(32,22,28), 5:(24,24,14), 6:(44,33,15), 7:(55,36,45), 8:(24,13,16)}
 
-        # FUNÇÃO CORRIGIDA: Agora reconhece "CX01", "CX 02", etc.
         def identificar_caixa(valor):
             val_str = str(valor).strip().lower()
             match = re.search(r'(?:cx|caixa)\s*0*(\d+)', val_str)
@@ -156,8 +155,11 @@ elif menu == "📍 Processador de Planilhas":
             except: pass
             return None
 
+        # FUNÇÃO CORRIGIDA: Agora remove o ".0" antes de extrair os números
         def limpa_numero(valor, tamanho):
-            txt = re.sub(r'\D', '', str(valor))
+            txt = str(valor).strip()
+            txt = re.sub(r'\.0$', '', txt)  # Corta o ".0" fantasma do Excel
+            txt = re.sub(r'\D', '', txt)    # Remove os não-números (ex: traços)
             return txt.zfill(tamanho) if txt and txt != '0' else ""
 
         with st.spinner("Processando endereços e organizando caixas..."):
@@ -177,8 +179,6 @@ elif menu == "📍 Processador de Planilhas":
             if 'CEP' in df.columns: df['CEP'] = df['CEP'].apply(lambda x: limpa_numero(x, 8))
             df = df[df['CEP'] != ""]
 
-            # NOVO: Blindagem de segurança ANTES do agrupamento
-            # Impede conflito de 'max()' entre Textos e Campos Vazios (NaN)
             for c in ['PESO', 'ALTURA', 'LARGURA', 'COMPRIMENTO']:
                 if c in df.columns:
                     df[c] = df[c].fillna("").astype(str).replace(r'\.0$', '', regex=True).replace('nan', '')
