@@ -139,7 +139,12 @@ elif menu == "📍 Processador de Planilhas":
     
     if arquivo_base and st.button("🚀 Processar Planilha de Importação", use_container_width=True):
         
-        medidas_caixas = {1:(44,32,27), 2:(50,34,32), 3:(34,34,16), 4:(32,22,28), 5:(24,24,14), 6:(44,33,15), 7:(55,36,45), 8:(24,13,16)}
+        # BLINDAGEM 1: Transformando as medidas fixas em Strings (Textos)
+        medidas_caixas = {
+            1:("44","32","27"), 2:("50","34","32"), 3:("34","34","16"), 
+            4:("32","22","28"), 5:("24","24","14"), 6:("44","33","15"), 
+            7:("55","36","45"), 8:("24","13","16")
+        }
 
         def identificar_caixa(valor):
             val_str = str(valor).strip().lower()
@@ -165,16 +170,20 @@ elif menu == "📍 Processador de Planilhas":
             df = pd.read_csv(arquivo_base) if arquivo_base.name.endswith('.csv') else pd.read_excel(arquivo_base)
             df.columns = df.columns.str.strip().str.upper()
 
-            # TRADUTOR: Se a coluna chamar "NOME", ele altera para "PINTOR" internamente.
             if 'NOME' in df.columns and 'PINTOR' not in df.columns:
                 df = df.rename(columns={'NOME': 'PINTOR'})
+
+            # BLINDAGEM 2: Garantindo que as colunas de medidas existam e sejam texto antes do preenchimento
+            for col in ['ALTURA', 'LARGURA', 'COMPRIMENTO']:
+                if col not in df.columns:
+                    df[col] = ""
+                df[col] = df[col].astype(str)
 
             for idx, row in df.iterrows():
                 caixa_id = None
                 for col in ['ALTURA', 'LARGURA', 'COMPRIMENTO']:
-                    if col in df.columns:
-                        res = identificar_caixa(row[col])
-                        if res in medidas_caixas: caixa_id = res; break
+                    res = identificar_caixa(row[col])
+                    if res in medidas_caixas: caixa_id = res; break
                 if caixa_id:
                     df.at[idx, 'ALTURA'], df.at[idx, 'LARGURA'], df.at[idx, 'COMPRIMENTO'] = medidas_caixas[caixa_id]
 
@@ -194,7 +203,6 @@ elif menu == "📍 Processador de Planilhas":
                     for c in ['NUMERO', 'COMPLEMENTO']: 
                         if c in df.columns: agg_funcs[c] = 'first'
                     
-                    # Remove do agg_funcs o que não tiver na tabela
                     agg_funcs = {k: v for k, v in agg_funcs.items() if k in df.columns}
                     
                     df_fixo = df.groupby('ID PINTOR').agg(agg_funcs).reset_index()
@@ -239,7 +247,6 @@ elif menu == "📍 Processador de Planilhas":
             
             df_final['logisticaReversa'] = 'N'
             
-            # BLINDAGEM DE COLUNAS: Garante que nada crache se uma coluna estiver ausente
             df_final['cpfCnpjDestinatario'] = df_base['CPF'].values if 'CPF' in df_base.columns else ""
             df_final['nomeDestinatario'] = df_base['PINTOR'].values if 'PINTOR' in df_base.columns else ""
             
