@@ -155,16 +155,19 @@ elif menu == "📍 Processador de Planilhas":
             except: pass
             return None
 
-        # FUNÇÃO CORRIGIDA: Agora remove o ".0" antes de extrair os números
         def limpa_numero(valor, tamanho):
             txt = str(valor).strip()
-            txt = re.sub(r'\.0$', '', txt)  # Corta o ".0" fantasma do Excel
-            txt = re.sub(r'\D', '', txt)    # Remove os não-números (ex: traços)
+            txt = re.sub(r'\.0$', '', txt)
+            txt = re.sub(r'\D', '', txt)
             return txt.zfill(tamanho) if txt and txt != '0' else ""
 
         with st.spinner("Processando endereços e organizando caixas..."):
             df = pd.read_csv(arquivo_base) if arquivo_base.name.endswith('.csv') else pd.read_excel(arquivo_base)
             df.columns = df.columns.str.strip().str.upper()
+
+            # TRADUTOR: Se a coluna chamar "NOME", ele altera para "PINTOR" internamente.
+            if 'NOME' in df.columns and 'PINTOR' not in df.columns:
+                df = df.rename(columns={'NOME': 'PINTOR'})
 
             for idx, row in df.iterrows():
                 caixa_id = None
@@ -177,7 +180,7 @@ elif menu == "📍 Processador de Planilhas":
 
             if 'CPF' in df.columns: df['CPF'] = df['CPF'].apply(lambda x: limpa_numero(x, 11))
             if 'CEP' in df.columns: df['CEP'] = df['CEP'].apply(lambda x: limpa_numero(x, 8))
-            df = df[df['CEP'] != ""]
+            if 'CEP' in df.columns: df = df[df['CEP'] != ""]
 
             for c in ['PESO', 'ALTURA', 'LARGURA', 'COMPRIMENTO']:
                 if c in df.columns:
@@ -185,22 +188,30 @@ elif menu == "📍 Processador de Planilhas":
 
             max_itens = 0
             if "Resgates" in modo_envio:
-                df = df.dropna(subset=['ID PINTOR'])
-                agg_funcs = {'CPF':'first','PINTOR':'first','CEP':'first','PESO':'max','ALTURA':'max','LARGURA':'max','COMPRIMENTO':'max'}
-                for c in ['NUMERO', 'COMPLEMENTO']: 
-                    if c in df.columns: agg_funcs[c] = 'first'
-                df_fixo = df.groupby('ID PINTOR').agg(agg_funcs).reset_index()
-                df_fixo['OBSERVACAO'] = df_fixo['ID PINTOR']
-                df['Material_Idx'] = df.groupby('ID PINTOR').cumcount() + 1
-                max_itens = df['Material_Idx'].max()
-                
-                df_pivoted = df.pivot(index='ID PINTOR', columns='Material_Idx', values=['MATERIAL', 'QUANTIDADE', 'VALOR' if 'VALOR' in df.columns else 'MATERIAL'])
-                df_materiais = pd.DataFrame(index=df_pivoted.index)
-                for i in range(1, max_itens + 1):
-                    df_materiais[f'DeclaracaoConteudoConteudo{i}'] = df_pivoted[('MATERIAL', i)]
-                    df_materiais[f'DeclaracaoConteudoQuantidade{i}'] = df_pivoted[('QUANTIDADE', i)]
-                    df_materiais[f'DeclaracaoConteudoValor{i}'] = df_pivoted[('VALOR', i)] if 'VALOR' in df.columns else ""
-                df_base = pd.merge(df_fixo, df_materiais, on='ID PINTOR', how='left')
+                if 'ID PINTOR' in df.columns:
+                    df = df.dropna(subset=['ID PINTOR'])
+                    agg_funcs = {'CPF':'first','PINTOR':'first','CEP':'first','PESO':'max','ALTURA':'max','LARGURA':'max','COMPRIMENTO':'max'}
+                    for c in ['NUMERO', 'COMPLEMENTO']: 
+                        if c in df.columns: agg_funcs[c] = 'first'
+                    
+                    # Remove do agg_funcs o que não tiver na tabela
+                    agg_funcs = {k: v for k, v in agg_funcs.items() if k in df.columns}
+                    
+                    df_fixo = df.groupby('ID PINTOR').agg(agg_funcs).reset_index()
+                    df_fixo['OBSERVACAO'] = df_fixo['ID PINTOR']
+                    df['Material_Idx'] = df.groupby('ID PINTOR').cumcount() + 1
+                    max_itens = df['Material_Idx'].max()
+                    
+                    df_pivoted = df.pivot(index='ID PINTOR', columns='Material_Idx', values=['MATERIAL', 'QUANTIDADE', 'VALOR' if 'VALOR' in df.columns else 'MATERIAL'])
+                    df_materiais = pd.DataFrame(index=df_pivoted.index)
+                    for i in range(1, max_itens + 1):
+                        df_materiais[f'DeclaracaoConteudoConteudo{i}'] = df_pivoted[('MATERIAL', i)]
+                        df_materiais[f'DeclaracaoConteudoQuantidade{i}'] = df_pivoted[('QUANTIDADE', i)] if 'QUANTIDADE' in df.columns else ""
+                        df_materiais[f'DeclaracaoConteudoValor{i}'] = df_pivoted[('VALOR', i)] if 'VALOR' in df.columns else ""
+                    df_base = pd.merge(df_fixo, df_materiais, on='ID PINTOR', how='left')
+                else:
+                    st.error("Erro: A coluna 'ID PINTOR' não foi encontrada para realizar o agrupamento de Resgates.")
+                    st.stop()
             else:
                 df['ID_UNICO'] = range(len(df))
                 df_fixo = df.set_index('ID_UNICO')
@@ -211,11 +222,11 @@ elif menu == "📍 Processador de Planilhas":
                     idx = int(n)
                     max_itens = max(max_itens, idx)
                     df_materiais[f'DeclaracaoConteudoConteudo{idx}'] = df_fixo[col]
-                    df_materiais[f'DeclaracaoConteudoQuantidade{idx}'] = df_fixo.get(f'QUANTIDADE{n}', "")
-                    df_materiais[f'DeclaracaoConteudoValor{idx}'] = df_fixo.get(f'VALOR{n}', "")
+                    df_materiais[f'DeclaracaoConteudoQuantidade{idx}'] = df_fixo[f'QUANTIDADE{n}'] if f'QUANTIDADE{n}' in df_fixo.columns else ""
+                    df_materiais[f'DeclaracaoConteudoValor{idx}'] = df_fixo[f'VALOR{n}'] if f'VALOR{n}' in df_fixo.columns else ""
                 df_base = pd.merge(df_fixo, df_materiais, left_index=True, right_index=True)
 
-            ceps_unicos = df_base['CEP'].unique()
+            ceps_unicos = df_base['CEP'].unique() if 'CEP' in df_base.columns else []
             dic_ceps = {cep: buscar_cep(cep) for cep in ceps_unicos}
 
             cols_correios = ["sequencial", "cpfCnpjRemetente", "documentoEstrangeiroRemetente", "nomeRemetente", "dddTelefoneRemetente", "telefoneRemetente", "dddCelularRemetente", "celularRemetente", "emailRemetente", "observacaoRemetente", "cepRemetente", "logradouroRemetente", "numeroRemetente", "complementoRemetente", "bairroRemetente", "cidadeRemetente", "ufRemetente", "cpfCnpjDestinatario", "documentoEstrangeiroDestinatario", "nomeDestinatario", "dddTelefoneDestinatario", "telefoneDestinatario", "dddCelularDestinatario", "celularDestinatario", "emailDestinatario", "observacaoDestinatario", "cepDestinatario", "logradouroDestinatario", "numeroDestinatario", "complementoDestinatario", "bairroDestinatario", "cidadeDestinatario", "ufDestinatario", "codigoServico", "dataPrevistaPostagem", "prazoPostagem", "logisticaReversa", "dataValidadeLogReversa", "codigoServicoAdicionalValorDeclarado", "valorDeclarado", "codigoServicoAdicionalEntregaVizinho", "orientacaoEntregaVizinho", "codigoServicoAdicional1", "codigoServicoAdicional2", "codigoServicoAdicional3", "pesoInformado", "codigoFormatoObjetoInformado", "alturaInformada", "larguraInformada", "comprimentoInformado", "diametroInformado", "cienteObjetoNaoProibido", "observacao", "numeroNotaFiscal", "chaveNFe", "rfidObjeto"]
@@ -227,25 +238,36 @@ elif menu == "📍 Processador de Planilhas":
             df_final[['cpfCnpjRemetente','nomeRemetente','cepRemetente','logradouroRemetente','numeroRemetente','bairroRemetente','cidadeRemetente','ufRemetente','cienteObjetoNaoProibido']] = ['03469994000188','Dimensao 3 Log','09930450','Avenida paranapanema','614','Taboão','São Paulo','SP','1']
             
             df_final['logisticaReversa'] = 'N'
-            df_final['cpfCnpjDestinatario'] = df_base['CPF'].values
-            df_final['nomeDestinatario'] = df_base['PINTOR'].values
-            df_final['cepDestinatario'] = df_base['CEP'].values
-            df_final['logradouroDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('logradouro') if dic_ceps.get(x) else "NÃO ENCONTRADO")
-            df_final['bairroDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('bairro','') if dic_ceps.get(x) else "")
-            df_final['cidadeDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('localidade','') if dic_ceps.get(x) else "")
-            df_final['ufDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('uf','') if dic_ceps.get(x) else "")
-            df_final['numeroDestinatario'] = df_base.get('NUMERO', "").values
-            df_final['complementoDestinatario'] = df_base.get('COMPLEMENTO', "").values
-            df_final['pesoInformado'] = df_base['PESO'].values
-            df_final['alturaInformada'] = df_base['ALTURA'].values
-            df_final['larguraInformada'] = df_base['LARGURA'].values
-            df_final['comprimentoInformado'] = df_base['COMPRIMENTO'].values
-            df_final['observacao'] = df_base.get('OBSERVACAO', "").values
+            
+            # BLINDAGEM DE COLUNAS: Garante que nada crache se uma coluna estiver ausente
+            df_final['cpfCnpjDestinatario'] = df_base['CPF'].values if 'CPF' in df_base.columns else ""
+            df_final['nomeDestinatario'] = df_base['PINTOR'].values if 'PINTOR' in df_base.columns else ""
+            
+            if 'CEP' in df_base.columns:
+                df_final['cepDestinatario'] = df_base['CEP'].values
+                df_final['logradouroDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('logradouro') if dic_ceps.get(x) else "NÃO ENCONTRADO")
+                df_final['bairroDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('bairro','') if dic_ceps.get(x) else "")
+                df_final['cidadeDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('localidade','') if dic_ceps.get(x) else "")
+                df_final['ufDestinatario'] = df_base['CEP'].map(lambda x: dic_ceps.get(x,{}).get('uf','') if dic_ceps.get(x) else "")
+            else:
+                df_final['cepDestinatario'] = ""
+                df_final['logradouroDestinatario'] = "NÃO ENCONTRADO"
+                df_final['bairroDestinatario'] = ""
+                df_final['cidadeDestinatario'] = ""
+                df_final['ufDestinatario'] = ""
+
+            df_final['numeroDestinatario'] = df_base['NUMERO'].values if 'NUMERO' in df_base.columns else ""
+            df_final['complementoDestinatario'] = df_base['COMPLEMENTO'].values if 'COMPLEMENTO' in df_base.columns else ""
+            df_final['pesoInformado'] = df_base['PESO'].values if 'PESO' in df_base.columns else ""
+            df_final['alturaInformada'] = df_base['ALTURA'].values if 'ALTURA' in df_base.columns else ""
+            df_final['larguraInformada'] = df_base['LARGURA'].values if 'LARGURA' in df_base.columns else ""
+            df_final['comprimentoInformado'] = df_base['COMPRIMENTO'].values if 'COMPRIMENTO' in df_base.columns else ""
+            df_final['observacao'] = df_base['OBSERVACAO'].values if 'OBSERVACAO' in df_base.columns else ""
 
             for i in range(1, max_itens + 1):
-                df_final[f'DeclaracaoConteudoConteudo{i}'] = df_base[f'DeclaracaoConteudoConteudo{i}'].values
-                df_final[f'DeclaracaoConteudoQuantidade{i}'] = df_base[f'DeclaracaoConteudoQuantidade{i}'].values
-                df_final[f'DeclaracaoConteudoValor{i}'] = df_base[f'DeclaracaoConteudoValor{i}'].values
+                df_final[f'DeclaracaoConteudoConteudo{i}'] = df_base[f'DeclaracaoConteudoConteudo{i}'].values if f'DeclaracaoConteudoConteudo{i}' in df_base.columns else ""
+                df_final[f'DeclaracaoConteudoQuantidade{i}'] = df_base[f'DeclaracaoConteudoQuantidade{i}'].values if f'DeclaracaoConteudoQuantidade{i}' in df_base.columns else ""
+                df_final[f'DeclaracaoConteudoValor{i}'] = df_base[f'DeclaracaoConteudoValor{i}'].values if f'DeclaracaoConteudoValor{i}' in df_base.columns else ""
 
             df_final = df_final.fillna("").astype(str).replace(r'\.0$', '', regex=True)
 
