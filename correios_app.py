@@ -243,7 +243,7 @@ elif menu == "📍 Processador de Planilhas":
 
             df_final = pd.DataFrame(columns=cols_correios)
             df_final['sequencial'] = range(1, len(df_base) + 1)
-            df_final[['cpfCnpjRemetente','nomeRemetente','cepRemetente','logradouroRemetente','numeroRemetente','bairroRemetente','cidadeRemetente','ufRemetente','cienteObjetoNaoProibido']] = ['03469994000188','Dimensao 3 Log','09930450','Avenida paranapanema','614','Taboão','São Paulo','SP','1']
+            df_final[['cpfCnpjRemetente','nomeRemetente','cepRemetente','logradouroRemetente','numeroRemetente','bairroRemetente','cidadeRemetente','ufRemetente','cienteObjetoNaoProibido']] = ['03469994000188','Dimensao 3 Log','09920970','Caixa Postal 75054','0','Centro','Diadema','SP','1']
             
             df_final['logisticaReversa'] = 'N'
             
